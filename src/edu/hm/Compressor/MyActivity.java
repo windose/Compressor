@@ -7,6 +7,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Log;
 import android.view.View;
@@ -93,14 +94,25 @@ public class MyActivity extends Activity {
     public void saveBitmap(Bitmap bitmap) {
         try {
             for (int i = 10; i <= 100; i += 10) {
-                File file = new File(String.format("/storage/extSdCard/Pictures/Compress/p_%d.jpg", i));
-                //if (!file.exists())
-                //    file.createNewFile();
+                //File file = new File(String.format("/storage/extSdCard/Pictures/Compress/p_%d.jpg", i));
+                File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS) +
+                        String.format("/Compress/p_%d.jpg", i));
+                if (!file.exists())
+                    file.createNewFile();
                 FileOutputStream out = new FileOutputStream(file);
                 bitmap.compress(Bitmap.CompressFormat.JPEG, i, out);
                 out.close();
                 Log.i("Test", String.format(" %d saved", i));
             }
+
+            File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS) +
+                    "/Compress/one.jpg");
+            if (!file.exists())
+                file.createNewFile();
+            FileOutputStream out = new FileOutputStream(file);
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 1, out);
+            out.close();
+
         } catch (IOException e) {
             e.printStackTrace();
         }
