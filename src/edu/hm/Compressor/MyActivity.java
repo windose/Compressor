@@ -9,17 +9,22 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
-import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.SeekBar;
+import android.widget.TextView;
 
 import java.io.*;
 import java.net.Socket;
+import java.util.List;
 
 public class MyActivity extends Activity {
 
-    public Bitmap mBitmap;
+    private Bitmap mBitmap;
+    private Bitmap mCompressedBitmap;
+    private SeekBar mSeekBar;
+    private String mPicName;
     /**
      * Called when the activity is first created.
      */
@@ -27,6 +32,8 @@ public class MyActivity extends Activity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
+
+        mSeekBar = (SeekBar) findViewById(R.id.seekBar);
 
         ((Button) findViewById(R.id.button)).setOnClickListener(new View.OnClickListener() {
             @Override
@@ -44,6 +51,34 @@ public class MyActivity extends Activity {
                 saveBitmap(mBitmap);
             }
         });
+
+        ((Button) findViewById(R.id.button3)).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                byte [] bArray = bitmapToByteArray(mBitmap, mSeekBar.getProgress());
+                mCompressedBitmap = byteArrayToBitmap(bArray);
+                ((ImageView) findViewById(R.id.image)).setImageBitmap(mCompressedBitmap);
+                ((TextView) findViewById(R.id.filesize_label))
+                        .setText("Filesize: " + Integer.toString(bArray.length / 1024) + " kB");
+            }
+        });
+
+        mSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                ((TextView)findViewById(R.id.textView)).setText(Integer.toString(progress));
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+
+            }
+        });
     }
 
     @Override
@@ -51,68 +86,35 @@ public class MyActivity extends Activity {
         if (requestCode == 1 && data != null) {
             if (resultCode == RESULT_OK) {
                 Uri selectedImageUri = data.getData();
+                List<String> seg = selectedImageUri.getPathSegments();
+                mPicName = seg.get(seg.size() - 1);
                 String imagePath = getPath(selectedImageUri);
+                mBitmap = BitmapFactory.decodeFile(imagePath);
 
-                Bitmap b = BitmapFactory.decodeFile(imagePath);
-                mBitmap = b;
+                ((TextView) findViewById(R.id.filesize_label))
+                        .setText("Filesize: " + Integer.toString(
+                                bitmapToByteArray(mBitmap).length / 1024) + " kB");
 
-                byte[] bArray2 = bitmapToByteArray(b);
-                byte[] bArray = bitmapToByteArray(b, 10);
-                Bitmap b2 = byteArrayToBitmap(bArray);
+                ((ImageView) findViewById(R.id.image)).setImageBitmap(mBitmap);
 
-                ((ImageView) findViewById(R.id.image)).setImageBitmap(b2);
-
-                if (b.getHeight() > 4096 || b.getWidth() > 4096) {
+                if (mBitmap.getHeight() > 4096 || mBitmap.getWidth() > 4096) {
                     //TODO Picture to big
                 }
 
-                Log.i("Test", String.format("Loaded File %s", imagePath));
-
-                Log.i("Test", String.format("Image %f MB big", bArray.length / 1024.0f / 1024.0f));
-                Log.i("Test", String.format("Image %f MB big (no compress)", bArray2.length / 1024.0f / 1024.0f));
+                mSeekBar.setProgress(100);
             }
-        }
-        //super.onActivityResult(requestCode,resultCode,data);
-    }
-
-    public void sendImage(Bitmap image) { // to ground-station
-        try {
-            Socket socket = new Socket("localhost", 4242);
-
-            BufferedOutputStream out = new BufferedOutputStream(socket.getOutputStream());
-
-            // Komprimierung vom Bild
-            byte[] bArray = bitmapToByteArray(image, 70);
-
-            out.write(bArray);
-            out.flush();
-            out.close();
-        } catch (IOException e) {
         }
     }
 
     public void saveBitmap(Bitmap bitmap) {
         try {
-            for (int i = 10; i <= 100; i += 10) {
-                //File file = new File(String.format("/storage/extSdCard/Pictures/Compress/p_%d.jpg", i));
-                File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS) +
-                        String.format("/Compress/p_%d.jpg", i));
-                if (!file.exists())
-                    file.createNewFile();
-                FileOutputStream out = new FileOutputStream(file);
-                bitmap.compress(Bitmap.CompressFormat.JPEG, i, out);
-                out.close();
-                Log.i("Test", String.format(" %d saved", i));
-            }
-
             File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS) +
-                    "/Compress/one.jpg");
+                String.format("/Compress/%s_%d.webp", mPicName, mSeekBar.getProgress()));
             if (!file.exists())
                 file.createNewFile();
             FileOutputStream out = new FileOutputStream(file);
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 1, out);
+            bitmap.compress(Bitmap.CompressFormat.WEBP, mSeekBar.getProgress(), out);
             out.close();
-
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -129,7 +131,7 @@ public class MyActivity extends Activity {
     public byte[] bitmapToByteArray(final Bitmap bitmap, final int compressFactor) {
         try {
             final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            bitmap.compress(Bitmap.CompressFormat.JPEG, compressFactor, baos);
+            bitmap.compress(Bitmap.CompressFormat.WEBP, compressFactor, baos);
             final byte[] bArray = baos.toByteArray();
             baos.close();
             return bArray;
@@ -160,5 +162,21 @@ public class MyActivity extends Activity {
         }
         // this is our fallback here
         return uri.getPath();
+    }
+
+    public void sendImage(Bitmap image) { // to ground-station
+        try {
+            Socket socket = new Socket("localhost", 4242);
+
+            BufferedOutputStream out = new BufferedOutputStream(socket.getOutputStream());
+
+            // Komprimierung vom Bild
+            byte[] bArray = bitmapToByteArray(image, 70);
+
+            out.write(bArray);
+            out.flush();
+            out.close();
+        } catch (IOException e) {
+        }
     }
 }
